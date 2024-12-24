@@ -1,8 +1,7 @@
-
 #Requires AutoHotkey v2.0
 
 ; Configuration file path
-configFile := "coordinates_config.ini"
+configFile := A_ScriptDir "\coordinates_config.ini"
 
 ; Default coordinates (will be overwritten by saved config if it exists)
 coordinates := Map(
@@ -34,11 +33,74 @@ coordinates := Map(
     "clickno", {x: 615, y: 620}
 )
 
-; Configuration mode
-ConfigureCoordinates() {
+; Try to load existing config when script starts
+LoadConfig()
+
+; Function Definitions
+SaveConfig() {
+    global coordinates, configFile
+    
+    try {
+        ; Create the configuration directory if it doesn't exist
+        SplitPath(configFile,, &configDir)
+        if !DirExist(configDir)
+            DirCreate(configDir)
+            
+        ; Create the INI content
+        fileContent := ""
+        for key, value in coordinates {
+            fileContent .= "[" key "]`n"
+            fileContent .= "x=" value.x "`n"
+            fileContent .= "y=" value.y "`n`n"
+        }
+        
+        ; Write to file
+        if FileExist(configFile)
+            FileDelete(configFile)
+        FileAppend(fileContent, configFile, "UTF-8")
+        return true
+    }
+    catch Error as e {
+        MsgBox("Error saving configuration: " e.Message, "Error", 16)
+        return false
+    }
+}
+
+LoadConfig() {
+    global coordinates, configFile
+    
+    try {
+        if FileExist(configFile) {
+            ; Read all sections from the INI file
+            IniSections := IniRead(configFile)
+            
+            ; Split sections into array
+            sections := StrSplit(IniSections, "`n")
+            
+            ; Process each section
+            for section in sections {
+                if coordinates.Has(section) {
+                    x := IniRead(configFile, section, "x", "")
+                    y := IniRead(configFile, section, "y", "")
+                    
+                    if (x != "" && y != "") {
+                        coordinates[section] := {x: Integer(x), y: Integer(y)}
+                    }
+                }
+            }
+            return true
+        }
+    }
+    catch Error as e {
+        MsgBox("Error loading configuration: " e.Message, "Error", 16)
+    }
+    return false
+}
+
+ConfigureCoordinates(*) {
     global coordinates
     
-    result := MsgBox("Configuration mode will start.nnPress F1 to set coordinates for each position.nPress Esc to cancel configuration.", "Configure Coordinates", 1)
+    result := MsgBox("Configuration mode will start.`n`nPress F1 to set coordinates for each position.`nPress P to cancel configuration.", "Configure Coordinates", 1)
     if (result = "Cancel")
         return false
 
@@ -74,8 +136,8 @@ ConfigureCoordinates() {
     
     for config in configOrder {
         result := MsgBox(
-            "Move your mouse to the " config.prompt " and press F1 to save it.nn" 
-            "Click OK then move your mouse.nn"
+            "Move your mouse to the " config.prompt " and press F1 to save it.`n`n" 
+            "Click OK then move your mouse.`n`n"
             "Current action: " config.prompt, 
             "Set Position", 1)
             
@@ -83,15 +145,14 @@ ConfigureCoordinates() {
             return false
         
         while true {
-            if GetKeyState("Escape", "P") {
+            if GetKeyState("P") {
                 MsgBox("Configuration cancelled!", "Cancelled", 48)
                 return false
             }
             
             if GetKeyState("F1", "P") {
                 MouseGetPos(&xpos, &ypos)
-                coordinates[config.key].x := xpos
-                coordinates[config.key].y := ypos
+                coordinates[config.key] := {x: xpos, y: ypos}
                 MsgBox("Saved " config.prompt ": " xpos ", " ypos, "Position Saved", 64)
                 Sleep(500)
                 break
@@ -100,73 +161,46 @@ ConfigureCoordinates() {
             Sleep(50)
         }
     }
-}    
-
-SaveConfig() {
-    global coordinates, configFile
     
-    try {
-        ; Create a new file or overwrite existing
-        fileContent := ""
-        for key, value in coordinates {
-            fileContent .= key "," value.x "," value.y "`n"
-        }
-        FileDelete(configFile)
-        FileAppend(fileContent, configFile)
-        return true
-    }
-    catch Error as e {
-        MsgBox("Error saving configuration: " e.Message, "Error", 16)
-        return false
-    }
+    ; Save the configuration after collecting all positions
+    if SaveConfig()
+        MsgBox("Configuration saved successfully!", "Success", 64)
+    else
+        MsgBox("Failed to save configuration!", "Error", 16)
+        
+    return true
 }
 
-LoadConfig() {
+ResetDefaults(*) {
     global coordinates, configFile
-    
-    try {
-        if FileExist(configFile) {
-            fileContent := FileRead(configFile)
-            
-            ; Split the content into lines
-            lines := StrSplit(fileContent, "`n", "`r")
-            
-            ; Process each line
-            for line in lines {
-                if line = "" ; Skip empty lines
-                    continue
-                    
-                ; Split the line into parts
-                parts := StrSplit(line, ",")
-                if parts.Length >= 3 {
-                    key := parts[1]
-                    x := Integer(parts[2])
-                    y := Integer(parts[3])
-                    
-                    ; Update coordinates if key exists
-                    if coordinates.Has(key)
-                        coordinates[key] := {x: x, y: y}
-                }
-            }
-            return true
+    result := MsgBox("Are you sure you want to reset all coordinates to defaults?", "Reset Coordinates", 4)
+    if (result = "Yes") {
+        try {
+            if FileExist(configFile)
+                FileDelete(configFile)
+            LoadConfig()
+            MsgBox("Coordinates reset to defaults!", "Success", 64)
+        }
+        catch Error as e {
+            MsgBox("Error resetting coordinates: " e.Message, "Error", 16)
         }
     }
-    catch Error as e {
-        MsgBox("Error loading configuration: " e.Message, "Error", 16)
-    }
-    return false
 }
 
 ; Create the main menu GUI
 mainGui := Gui("+AlwaysOnTop", "Automation Menu")
 mainGui.Add("Button", "w200 h30", "Start Automation").OnEvent("Click", StartAutomation)
-mainGui.Add("Button", "w200 h30 y+5", "Configure Coordinates").OnEvent("Click", ConfigurePositions)
+mainGui.Add("Button", "w200 h30 y+5", "Configure Coordinates").OnEvent("Click", ConfigureCoordinates)
 mainGui.Add("Button", "w200 h30 y+5", "Reset to Defaults").OnEvent("Click", ResetDefaults)
 mainGui.Add("Button", "w200 h30 y+5", "Exit").OnEvent("Click", (*) => ExitApp())
 mainGui.Show()
 
+; Hotkey to exit the script
+P::ExitApp
+
+
 StartAutomation(*) {
-    result := MsgBox("Press OK to start the automation.nPress Esc at any time to stop.", "Start Automation", 1)
+    result := MsgBox("Press OK to start the automation.nPress P at any time to stop.", "Start Automation", 1)
     if (result = "Cancel")
         return
     
@@ -185,6 +219,23 @@ StartAutomation(*) {
     
     running := true
     while running {
+        ;Kills it self
+        Send("{Escape}") ; Press Escape
+        Sleep(600) ; Wait 100ms
+        Send("r") ; Press R
+        Sleep(600) ; Wait 100ms
+        Send("{Enter}") ; Press Enter
+
+        ;positions to the seat
+        Send("{w down}") ; Hold down W
+        Sleep(5000) ; Wait for 3 seconds
+        Send("{w up}") ; Release W
+        Sleep 1000
+        Send "{e}"
+        Sleep 200
+        Send "{1}"
+        Sleep 3000
+
         ; Bed
         MouseMove coordinates["bed"].x, coordinates["bed"].y
         Sleep 100
@@ -217,16 +268,6 @@ StartAutomation(*) {
         Send "{2}"
         Sleep 20000
 
-        ; Bath
-        MouseMove coordinates["bath"].x, coordinates["bath"].y
-        Sleep 100
-        MouseMove coordinates["bath"].x + 2, coordinates["bath"].y
-        Sleep 100
-        Click "down"
-        Sleep 100
-        Click "up"
-        Sleep 15000
-
         ; Water
         MouseMove coordinates["water"].x, coordinates["water"].y
         Sleep 100
@@ -246,6 +287,17 @@ StartAutomation(*) {
         Sleep 100
         Click "up"
         Sleep 15000
+
+        ; Bath
+        MouseMove coordinates["bath"].x, coordinates["bath"].y
+        Sleep 100
+        MouseMove coordinates["bath"].x + 2, coordinates["bath"].y
+        Sleep 100
+        Click "down"
+        Sleep 100
+        Click "up"
+        Sleep 15000
+
 
         ; Backpack
         MouseMove coordinates["backpack"].x, coordinates["backpack"].y
@@ -297,6 +349,10 @@ StartAutomation(*) {
         Click "up"
         Sleep 500
 
+        ; Put pet into stroller
+        Sleep 500
+        Send "{r}"
+
         ; Pick up pet
         MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
         Sleep 100
@@ -311,6 +367,7 @@ StartAutomation(*) {
         Click "up"
 
         ; Put pet into stroller
+        Sleep 500
         Send "{r}"
 
         ; Jump
@@ -320,7 +377,7 @@ StartAutomation(*) {
         Send "{Space up}"
         Sleep 100
         Send "{Space down}"
-        Sleep 20000
+        Sleep 40000
         Send "{Space up}"
 
         ; Sit down
@@ -341,6 +398,7 @@ StartAutomation(*) {
         Sleep 500
 
         ; Pick up pet again
+        Sleep 2000
         MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
         Sleep 100
         MouseMove coordinates["pet_position"].x + 2, coordinates["pet_position"].y
@@ -360,7 +418,7 @@ StartAutomation(*) {
         Send "{Space up}"
         Sleep 100
         Send "{Space down}"
-        Sleep 20000
+        Sleep 40000
         Send "{Space up}"
 
         ; Sit down again
@@ -374,6 +432,13 @@ StartAutomation(*) {
         Send "{r}"
         Sleep 500
 
+        ;Kills it self
+        Send("{Escape}") ; Press Escape
+        Sleep(100) ; Wait 100ms
+        Send("r") ; Press R
+        Sleep(100) ; Wait 100ms
+        Send("{Enter}") ; Press Enter
+
         ; Click No
         MouseMove coordinates["clickno"].x, coordinates["clickno"].y
         Sleep 100
@@ -384,6 +449,7 @@ StartAutomation(*) {
         Click "up"
 
         ; Backpack again
+        Sleep(2000)
         MouseMove coordinates["backpack"].x, coordinates["backpack"].y
         Sleep 100
         MouseMove coordinates["backpack"].x + 2, coordinates["backpack"].y
@@ -431,6 +497,7 @@ StartAutomation(*) {
                 Sleep 100
                 Click "up"
                 Sleep 500
+
         
                 ; Use toy (3 times)
                 MouseMove coordinates["use_toy"].x, coordinates["use_toy"].y
@@ -449,6 +516,16 @@ StartAutomation(*) {
                 Sleep 100
                 Click "up"
                 Sleep 5000
+
+            ;positions to the seat
+            Send("{w down}") ; Hold down W
+            Sleep(3000) ; Wait for 3 seconds
+            Send("{w up}") ; Release W
+            Sleep 1000
+            Send "{e}"
+            Sleep 200
+            Send "{1}"
+            Sleep 100
         
                 ; Turn off toy
                 MouseMove coordinates["remove_stroller"].x, coordinates["remove_stroller"].y
@@ -468,7 +545,7 @@ StartAutomation(*) {
                 Click "down"
                 Sleep 100
                 Click "up"
-        
+
                 ; Pick up pet one last time
                 MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
                 Sleep 100
@@ -482,11 +559,23 @@ StartAutomation(*) {
                 Sleep 100
                 Click "up"
                 Sleep 500
-        
+
                 ; Put down pet
                 Sleep 500
                 Send "{r}"
                 Sleep 500
+
+                ; Small jump
+                Send "{Space down}"
+                Sleep 200
+                Send "{Space up}"
+                Sleep 1500
+
+                ;positions to the seat
+                Send("{w down}") ;
+                Sleep(500) ;
+                Send("{w up}") ;
+                Sleep 1000
         
                 ; Start of 5-task sequence
                 ;Click Pet
@@ -660,7 +749,7 @@ StartAutomation(*) {
                 Send "{Space up}"
                 Sleep 1000
         
-                if GetKeyState("Escape", "P") {
+                if GetKeyState("P") {
                     running := false
                     MsgBox("Script stopped!", "Stopped", 48)
                     break
@@ -672,18 +761,4 @@ StartAutomation(*) {
             ConfigureCoordinates()
         }
         
-        ResetDefaults(*) {
-            result := MsgBox("Are you sure you want to reset all coordinates to defaults?", "Reset Coordinates", 4)
-            if (result = "Yes") {
-                try {
-                    FileDelete(configFile)
-                    LoadConfig()
-                    MsgBox("Coordinates reset to defaults!", "Success", 64)
-                }
-                catch Error as e {
-                    MsgBox("Error resetting coordinates: " e.Message, "Error", 16)
-                }
-            }
-        }
         
-        Esc::ExitApp
