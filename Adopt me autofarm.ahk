@@ -30,7 +30,7 @@ coordinates := Map(
     "taskselect5", {x: 615, y: 620},
     "unlocktask", {x: 615, y: 620},
     "taskexit", {x: 615, y: 620},
-    "clickno", {x: 615, y: 620}
+   
 )
 
 ; Try to load existing config when script starts
@@ -131,7 +131,7 @@ ConfigureCoordinates(*) {
         {key: "taskselect5", prompt: "position to select task 5"},
         {key: "unlocktask", prompt: "position to unlock task"},
         {key: "taskexit", prompt: "position to exit the task"},
-        {key: "clickno", prompt: "position to click No button"}
+  
     ]
     
     for config in configOrder {
@@ -310,6 +310,7 @@ StartAutomation(*) {
         Click "down"
         Sleep 100
         Click "up"
+        Sleep 500
 
         ; Backpack
         MouseMove coordinates["backpack"].x, coordinates["backpack"].y
@@ -426,14 +427,7 @@ StartAutomation(*) {
         Sleep(100) ; Wait 100ms
         Send("{Enter}") ; Press Enter
 
-        ; Click No
-        MouseMove coordinates["clickno"].x, coordinates["clickno"].y
-        Sleep 100
-        MouseMove coordinates["clickno"].x + 2, coordinates["clickno"].y
-        Sleep 100
-        Click "down"
-        Sleep 100
-        Click "up"
+        
 
         ; Backpack again
         Sleep(2000)
@@ -526,15 +520,7 @@ StartAutomation(*) {
         
         
         
-                ; Click No
-                MouseMove coordinates["clickno"].x, coordinates["clickno"].y
-                Sleep 100
-                MouseMove coordinates["clickno"].x + 2, coordinates["clickno"].y
-                Sleep 100
-                Click "down"
-                Sleep 100
-                Click "up"
-                Sleep 500
+                
 
                 ; Pick up pet one last time
                 MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
