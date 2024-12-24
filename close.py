@@ -9,9 +9,124 @@ import win32gui
 import win32con
 import os
 import win32api
-from ctypes import windll
+from ctypes import windll, Structure, c_long, byref
 import psutil
 import threading
+import random
+
+class MouseInput(ctypes.Structure):
+    _fields_ = [
+        ("dx", ctypes.c_long),
+        ("dy", ctypes.c_long),
+        ("mouseData", ctypes.c_ulong),
+        ("dwFlags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))
+    ]
+
+class Input_I(ctypes.Union):
+    _fields_ = [("mi", MouseInput)]
+
+class Input(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_ulong),
+        ("ii", Input_I)
+    ]
+
+class POINT(Structure):
+    _fields_ = [("x", c_long), ("y", c_long)]
+
+def get_cursor_position():
+    pt = POINT()
+    windll.user32.GetCursorPos(byref(pt))
+    return (pt.x, pt.y)
+
+def set_cursor_position(x, y):
+    win32api.SetCursorPos((x, y))
+
+def smooth_move(x_dest, y_dest, duration=0.3):
+    """Move mouse smoothly to destination"""
+    start_x, start_y = get_cursor_position()
+    steps = 20
+    
+    sleep_time = duration / steps
+    x_step = (x_dest - start_x) / steps
+    y_step = (y_dest - start_y) / steps
+    
+    for i in range(steps):
+        random_offset = random.uniform(-2, 2)
+        new_x = int(start_x + (x_step * i) + random_offset)
+        new_y = int(start_y + (y_step * i) + random_offset)
+        set_cursor_position(new_x, new_y)
+        time.sleep(sleep_time)
+    
+    set_cursor_position(x_dest, y_dest)
+
+def send_input_click(x, y):
+    """Send mouse click using SendInput at specific coordinates"""
+    extra = ctypes.c_ulong(0)
+    ii_ = Input_I()
+    
+    # Mouse down
+    ii_.mi = MouseInput(0, 0, 0, 0x0002, 0, ctypes.pointer(extra))  # MOUSEEVENTF_LEFTDOWN
+    x_down = Input(0, ii_)
+    ctypes.windll.user32.SendInput(1, ctypes.pointer(x_down), ctypes.sizeof(x_down))
+    
+    time.sleep(random.uniform(0.05, 0.1))
+    
+    # Mouse up
+    ii_.mi = MouseInput(0, 0, 0, 0x0004, 0, ctypes.pointer(extra))  # MOUSEEVENTF_LEFTUP
+    x_up = Input(0, ii_)
+    ctypes.windll.user32.SendInput(1, ctypes.pointer(x_up), ctypes.sizeof(x_up))
+
+def direct_click(x, y):
+    """Perform direct mouse click at specific coordinates"""
+    # Convert coordinates to screen coordinates
+    x = int(x)
+    y = int(y)
+    
+    # Calculate absolute position
+    normalized_x = int(x * 65535 / win32api.GetSystemMetrics(0))
+    normalized_y = int(y * 65535 / win32api.GetSystemMetrics(1))
+    
+    # Move and click
+    win32api.mouse_event(win32con.MOUSEEVENTF_ABSOLUTE | win32con.MOUSEEVENTF_MOVE, normalized_x, normalized_y, 0, 0)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, normalized_x, normalized_y, 0, 0)
+    time.sleep(random.uniform(0.05, 0.1))
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, normalized_x, normalized_y, 0, 0)
+
+def natural_click(x, y):
+    """Perform a more natural and reliable click with multiple click methods"""
+    # Move to position with slight randomness
+    target_x = x + random.randint(-2, 2)
+    target_y = y + random.randint(-2, 2)
+    
+    # Smooth movement to position
+    smooth_move(target_x, target_y)
+    
+    # Small random delay before clicking
+    time.sleep(random.uniform(0.05, 0.1))
+    
+    # Try multiple click methods for reliability
+    try:
+        # Method 1: SendInput click
+        send_input_click(target_x, target_y)
+        
+        # Small delay between methods
+        time.sleep(random.uniform(0.02, 0.05))
+        
+        # Method 2: Direct click as backup
+        direct_click(target_x, target_y)
+        
+    except Exception as e:
+        print(f"Click error: {e}")
+        # Fallback to direct click if SendInput fails
+        direct_click(target_x, target_y)
+    
+    # Small movement after click
+    post_x = target_x + random.randint(-3, 3)
+    post_y = target_y + random.randint(-3, 3)
+    smooth_move(post_x, post_y, duration=0.1)
 
 class ResourceMonitor:
     def __init__(self):
@@ -38,21 +153,12 @@ def make_console_always_on_top():
     win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, 
                          win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
 
-def force_click(x, y):
-    x, y = int(x), int(y)
-    windll.user32.SetCursorPos(x, y)
-    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
-    time.sleep(0.01)
-    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
-
 class ImageDetector:
     def __init__(self, template_path, region=None):
-        # Load and resize template to a reasonable size if it's too large
         self.template = cv2.imread(template_path)
         if self.template is None:
             raise ValueError(f"Could not load template image: {template_path}")
         
-        # Resize template if it's too large (helps with performance)
         max_template_size = 100
         h, w = self.template.shape[:2]
         if h > max_template_size or w > max_template_size:
@@ -63,12 +169,11 @@ class ImageDetector:
         self.click_count = 0
         self.last_screenshot = None
         self.last_screenshot_time = 0
-        self.screenshot_interval = 0.05  # 50ms minimum between screenshots
+        self.screenshot_interval = 0.05
         
     def capture_screen(self):
         current_time = time.time()
         
-        # Only capture new screenshot if enough time has passed
         if (current_time - self.last_screenshot_time) >= self.screenshot_interval:
             if self.region:
                 screenshot = ImageGrab.grab(bbox=self.region)
@@ -84,7 +189,6 @@ class ImageDetector:
         if screen is None:
             return None
             
-        # Use TM_CCOEFF_NORMED method which is generally faster
         result = cv2.matchTemplate(screen, self.template, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
         
@@ -125,7 +229,6 @@ def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def main():
-    # Initialize resource monitor
     monitor = ResourceMonitor()
     monitor.start_monitoring()
     
@@ -162,24 +265,22 @@ def main():
                 scan_count += 1
                 result = detector.find_image()
                 
-                # Update status every second
                 current_time = time.time()
                 if current_time - last_status_update >= 1:
-                    print('\r' + ' ' * 100, end='\r')  # Clear the line
+                    print('\r' + ' ' * 100, end='\r')
                     print(f"\rScans: {scan_count}, Clicks: {detector.click_count}, "
                           f"CPU: {monitor.cpu_usage:.1f}%, "
                           f"Memory: {monitor.memory_usage:.1f}MB", end='')
                     last_status_update = current_time
-                    scan_count = 0  # Reset scan count every second
+                    scan_count = 0
                 
                 if result:
                     x, y, confidence = result
                     detector.click_count += 1
-                    print('\n', end='')  # Move to new line
+                    print('\n', end='')
                     log_message(f"Image found! Clicking at ({x}, {y}) with confidence: {confidence:.3f}")
-                    force_click(x, y)
+                    natural_click(x, y)
                 
-                # Small sleep to prevent excessive CPU usage
                 time.sleep(0.01)
                 
             except Exception as e:
