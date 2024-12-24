@@ -20,7 +20,7 @@ coordinates := Map(
     "remove_stroller", {x: 1060, y: 980},
     "toy_icon", {x: 755, y: 850},
     "toy_equip", {x: 1090, y: 800},
-    "toy_position", {x: 980, y: 710},
+    "toy_position", {x: 980, y: 710},  
     "use_toy", {x: 1120, y: 1010},
     "clickpet", {x: 615, y: 620},     
     "taskselect", {x: 615, y: 620},
@@ -298,6 +298,18 @@ StartAutomation(*) {
         Click "up"
         Sleep 15000
 
+        ; Pick up pet
+        MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
+        Sleep 100
+        MouseMove coordinates["pet_position"].x + 2, coordinates["pet_position"].y
+        Sleep 100
+        Click "down"
+        Sleep 100
+        Click "up"
+        Sleep 500
+        Click "down"
+        Sleep 100
+        Click "up"
 
         ; Backpack
         MouseMove coordinates["backpack"].x, coordinates["backpack"].y
@@ -348,27 +360,6 @@ StartAutomation(*) {
         Sleep 100
         Click "up"
         Sleep 500
-
-        ; Put pet into stroller
-        Sleep 500
-        Send "{r}"
-
-        ; Pick up pet
-        MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
-        Sleep 100
-        MouseMove coordinates["pet_position"].x + 2, coordinates["pet_position"].y
-        Sleep 100
-        Click "down"
-        Sleep 100
-        Click "up"
-        Sleep 500
-        Click "down"
-        Sleep 100
-        Click "up"
-
-        ; Put pet into stroller
-        Sleep 500
-        Send "{r}"
 
         ; Jump
         Sleep 500
@@ -427,10 +418,6 @@ StartAutomation(*) {
         Sleep 100
         Send "{1}"
         Sleep 100
-
-        ; Put down pet
-        Send "{r}"
-        Sleep 500
 
         ;Kills it self
         Send("{Escape}") ; Press Escape
@@ -517,16 +504,6 @@ StartAutomation(*) {
                 Click "up"
                 Sleep 5000
 
-            ;positions to the seat
-            Send("{w down}") ; Hold down W
-            Sleep(3000) ; Wait for 3 seconds
-            Send("{w up}") ; Release W
-            Sleep 1000
-            Send "{e}"
-            Sleep 200
-            Send "{1}"
-            Sleep 100
-        
                 ; Turn off toy
                 MouseMove coordinates["remove_stroller"].x, coordinates["remove_stroller"].y
                 Sleep 100
@@ -536,6 +513,18 @@ StartAutomation(*) {
                 Sleep 100
                 Click "up"
                 Sleep 500
+
+                ;positions to the seat
+                Send("{w down}") ; Hold down W
+                Sleep(3000) ; Wait for 3 seconds
+                Send("{w up}") ; Release W
+                Sleep 1000
+                Send "{e}"
+                Sleep 200
+                Send "{1}"
+                Sleep 500
+        
+        
         
                 ; Click No
                 MouseMove coordinates["clickno"].x, coordinates["clickno"].y
@@ -545,6 +534,7 @@ StartAutomation(*) {
                 Click "down"
                 Sleep 100
                 Click "up"
+                Sleep 500
 
                 ; Pick up pet one last time
                 MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
