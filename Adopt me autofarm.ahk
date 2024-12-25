@@ -297,6 +297,24 @@ StartAutomation(*) {
         Sleep 100
         Click "up"
         Sleep 15000
+	
+	;Kills it self
+        Send("{Escape}") ; Press Escape
+        Sleep(600) ; Wait 100ms
+        Send("r") ; Press R
+        Sleep(600) ; Wait 100ms
+        Send("{Enter}") ; Press Enter
+
+        ;positions to the seat
+        Send("{w down}") ; Hold down W
+        Sleep(5000) ; Wait for 3 seconds
+        Send("{w up}") ; Release W
+        Sleep 1000
+        Send "{e}"
+        Sleep 200
+        Send "{1}"
+        Sleep 3000
+
 
         ; Pick up pet
         MouseMove coordinates["pet_position"].x, coordinates["pet_position"].y
